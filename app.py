@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import re
 from collections import Counter
-import spacy
 from textblob import TextBlob
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
@@ -11,9 +10,10 @@ import seaborn as sns
 import pyLDAvis
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
 from sklearn.decomposition import LatentDirichletAllocation
-import nltk
 import fitz  # PyMuPDF
 import warnings
+import subprocess
+import sys
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -25,27 +25,33 @@ st.set_page_config(
 # --- Suppress Warnings ---
 warnings.filterwarnings('ignore')
 
-# --- Download NLTK Data (safe for Streamlit Cloud) ---
+# --- Ensure spaCy English model is installed ---
 try:
-    nltk.data.find('corpora/stopwords')
-except LookupError:
-    nltk.download('stopwords', quiet=True)
+    import spacy
+    spacy.load("en_core_web_sm")
+except ImportError:
+    st.error("spaCy is not installed. Please check your requirements.")
+except OSError:
+    subprocess.run([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
 
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt', quiet=True)
+# --- Safe NLTK downloads ---
+import nltk
+for resource in ['stopwords', 'punkt']:
+    try:
+        nltk.data.find(f'corpora/{resource}')
+    except LookupError:
+        nltk.download(resource, quiet=True)
 
-# --- Caching Functions for Performance ---
+# --- Caching Functions ---
 @st.cache_data
 def load_and_process_pdf(file_path):
-    """Loads a PDF, extracts text, cleans it, and performs sentiment analysis."""
+    """Load PDF, extract text, clean, and perform sentiment analysis."""
     doc = fitz.open(file_path)
     pages_data = [{'page_num': page_num + 1, 'text': page.get_text("text")} 
                   for page_num, page in enumerate(doc) if page.get_text("text").strip()]
     df = pd.DataFrame(pages_data)
 
-    # Preprocess text
+    # Text preprocessing
     stop_words = set(nltk.corpus.stopwords.words('english'))
     def preprocess_text(text):
         text = text.lower()
@@ -62,32 +68,29 @@ def load_and_process_pdf(file_path):
 
 @st.cache_resource
 def load_spacy_model():
-    """Loads the spaCy model."""
-    return spacy.load('en_core_web_sm')
-
+    """Lazy-load spaCy model for NER."""
+    import spacy
+    return spacy.load("en_core_web_sm")
 
 # --- Main App UI ---
 st.title("📄 NLP Analysis of the L&T Annual Report")
 st.markdown("This dashboard displays a detailed NLP analysis of the L&T annual report.")
 
-# Define the path to your local PDF file
-PDF_PATH = "LT_Annual_Report.pdf"  # Make sure this filename matches your PDF
+# PDF file path
+PDF_PATH = "LT_Annual_Report.pdf"  # Make sure this file exists
 
-# --- Run analysis ---
 try:
     with st.spinner("Analyzing document... This might take a minute."):
-
-        # 1. Load, Process, and Analyze Sentiment
         df = load_and_process_pdf(PDF_PATH)
         full_text = " ".join(df['text'])
         full_cleaned_text = " ".join(df['cleaned_text'])
-    
+
     st.success("Analysis complete! Here are the insights:")
 
-    # --- High-Level Insights ---
+    # --- Sentiment Visualizations ---
     st.header("Overall Report Sentiment")
     col1, col2 = st.columns(2)
-    
+
     with col1:
         st.subheader("Sentiment Trend Across Pages")
         fig_trend, ax_trend = plt.subplots(figsize=(10, 5))
@@ -113,7 +116,6 @@ try:
     col3, col4 = st.columns(2)
 
     with col3:
-        # 3. Named Entity Recognition (NER)
         st.subheader("Top Mentioned Entities")
         nlp = load_spacy_model()
         doc = nlp(full_text[:1000000])  # Limit to 1M chars for performance
@@ -126,8 +128,7 @@ try:
             st.markdown(f"**{label}:**")
             for item, freq in count.most_common(5):
                 st.write(f"  - {item}: {freq} mentions")
-        
-        # 4. Word Frequency
+
         st.subheader("Top 30 Most Frequent Words")
         all_words = full_cleaned_text.split()
         word_counts = Counter(all_words)
@@ -135,38 +136,35 @@ try:
         st.dataframe(top_30_df, height=300)
 
     with col4:
-        # 5. Word Cloud
         st.subheader("Word Cloud Visualization")
         wordcloud = WordCloud(width=800, height=600, background_color='white').generate(full_cleaned_text)
         fig_wc, ax_wc = plt.subplots(figsize=(10, 7))
         ax_wc.imshow(wordcloud, interpolation='bilinear')
         ax_wc.axis('off')
         st.pyplot(fig_wc)
-        
+
     st.markdown("---")
     st.header("Topic Modeling with LDA")
-    
-    # 6. Topic Modeling
+
     with st.spinner("Building topic model..."):
         num_topics = 5
         tfidf_vectorizer = TfidfVectorizer(max_df=0.90, min_df=5, stop_words='english')
         dtm_tfidf = tfidf_vectorizer.fit_transform(df['cleaned_text'])
         lda_model = LatentDirichletAllocation(n_components=num_topics, random_state=42)
         lda_model.fit(dtm_tfidf)
-        
+
         st.subheader(f"Top {num_topics} Discovered Topics")
         feature_names = tfidf_vectorizer.get_feature_names_out()
         for idx, topic in enumerate(lda_model.components_):
             top_words = [feature_names[i] for i in topic.argsort()[:-10 - 1:-1]]
             st.write(f"**Topic {idx+1}:** {', '.join(top_words)}")
-        
+
         st.subheader("Average Sentiment per Topic")
         topic_distribution = lda_model.transform(dtm_tfidf)
         df['topic'] = topic_distribution.argmax(axis=1)
         sentiment_by_topic = df.groupby('topic')['sentiment'].mean().sort_values(ascending=False)
         st.dataframe(sentiment_by_topic)
 
-    # 7. Interactive LDA Visualization
     with st.expander("Explore Interactive Topic Model (pyLDAvis)"):
         with st.spinner("Preparing interactive visualization..."):
             count_vectorizer = CountVectorizer(vocabulary=tfidf_vectorizer.get_feature_names_out())
@@ -183,6 +181,6 @@ try:
             st.components.v1.html(html_string, width=1300, height=800, scrolling=True)
 
 except FileNotFoundError:
-    st.error(f"Error: The file '{PDF_PATH}' was not found. Please make sure it's in the same folder as app.py.")
+    st.error(f"Error: The file '{PDF_PATH}' was not found. Make sure it's in the same folder as app.py.")
 except Exception as e:
     st.error(f"An error occurred during analysis: {e}")
