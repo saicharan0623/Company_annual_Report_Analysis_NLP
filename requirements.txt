@@ -6,6 +6,8 @@ wordcloud
 pyLDAvis
 scikit-learn
 spacy==3.7.2
+thinc==8.2.4
 nltk
 seaborn
 matplotlib
+numpy==1.26.0
