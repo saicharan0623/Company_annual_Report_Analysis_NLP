@@ -38,7 +38,7 @@ for resource in ['stopwords', 'punkt']:
 def load_and_process_pdf(file_path):
     """Load PDF, extract text, clean, and perform sentiment analysis."""
     doc = fitz.open(file_path)
-    pages_data = [{'page_num': page_num + 1, 'text': page.get_text("text")} 
+    pages_data = [{'page_num': page_num + 1, 'text': page.get_text("text")}
                   for page_num, page in enumerate(doc) if page.get_text("text").strip()]
     df = pd.DataFrame(pages_data)
 
@@ -54,21 +54,26 @@ def load_and_process_pdf(file_path):
 
     # Sentiment analysis
     df['sentiment'] = df['text'].apply(lambda text: TextBlob(text).sentiment.polarity)
-    
+
     return df
 
 @st.cache_resource
 def load_spacy_model():
     """Lazy-load spaCy model for NER."""
     import spacy
-    return spacy.load("en_core_web_sm")
+    try:
+        return spacy.load("en_core_web_sm")
+    except OSError:
+        # If model is missing, download it at runtime
+        subprocess.run([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
+        return spacy.load("en_core_web_sm")
 
 # --- Main App UI ---
 st.title("📄 NLP Analysis of the L&T Annual Report")
 st.markdown("This dashboard displays a detailed NLP analysis of the L&T annual report.")
 
 # PDF file path
-PDF_PATH = "LT_Annual_Report.pdf"  # Make sure this file exists
+PDF_PATH = "LT_Annual_Report.pdf"  # Ensure this file exists
 
 try:
     with st.spinner("Analyzing document... This might take a minute."):
@@ -109,7 +114,7 @@ try:
     with col3:
         st.subheader("Top Mentioned Entities")
         nlp = load_spacy_model()
-        doc = nlp(full_text[:1000000])  # Limit to 1M chars for performance
+        doc = nlp(full_text[:1000000])  # Limit to 1M chars
         entities = {"PERSON": [], "GPE": [], "ORG": []}
         for ent in doc.ents:
             if ent.label_ in entities:
