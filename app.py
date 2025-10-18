@@ -25,22 +25,24 @@ st.set_page_config(
 # --- Suppress Warnings ---
 warnings.filterwarnings('ignore')
 
-# --- Download NLTK Data (one-time) ---
+# --- Download NLTK Data (safe for Streamlit Cloud) ---
 try:
     nltk.data.find('corpora/stopwords')
-except nltk.downloader.DownloadError:
+except LookupError:
     nltk.download('stopwords', quiet=True)
+
 try:
     nltk.data.find('tokenizers/punkt')
-except nltk.downloader.DownloadError:
+except LookupError:
     nltk.download('punkt', quiet=True)
 
 # --- Caching Functions for Performance ---
 @st.cache_data
 def load_and_process_pdf(file_path):
-    """Loads a PDF from a local path, extracts text, cleans it, and performs sentiment analysis."""
+    """Loads a PDF, extracts text, cleans it, and performs sentiment analysis."""
     doc = fitz.open(file_path)
-    pages_data = [{'page_num': page_num + 1, 'text': page.get_text("text")} for page_num, page in enumerate(doc) if page.get_text("text").strip()]
+    pages_data = [{'page_num': page_num + 1, 'text': page.get_text("text")} 
+                  for page_num, page in enumerate(doc) if page.get_text("text").strip()]
     df = pd.DataFrame(pages_data)
 
     # Preprocess text
@@ -69,22 +71,20 @@ st.title("📄 NLP Analysis of the L&T Annual Report")
 st.markdown("This dashboard displays a detailed NLP analysis of the L&T annual report.")
 
 # Define the path to your local PDF file
-PDF_PATH = "LT_Annual_Report.pdf" # Make sure this filename matches yours!
+PDF_PATH = "LT_Annual_Report.pdf"  # Make sure this filename matches your PDF
 
-# --- MODIFICATION: Run analysis directly on load ---
+# --- Run analysis ---
 try:
     with st.spinner("Analyzing document... This might take a minute."):
-        
-        # 1. Load, Process, and Analyze Sentiment from the local file
+
+        # 1. Load, Process, and Analyze Sentiment
         df = load_and_process_pdf(PDF_PATH)
         full_text = " ".join(df['text'])
         full_cleaned_text = " ".join(df['cleaned_text'])
     
     st.success("Analysis complete! Here are the insights:")
-    
-    # --- The rest of the code is now at the top level and runs automatically ---
-    
-    # 2. Display High-Level Insights
+
+    # --- High-Level Insights ---
     st.header("Overall Report Sentiment")
     col1, col2 = st.columns(2)
     
@@ -116,7 +116,7 @@ try:
         # 3. Named Entity Recognition (NER)
         st.subheader("Top Mentioned Entities")
         nlp = load_spacy_model()
-        doc = nlp(full_text[:1000000]) # Limiting to 1M chars for performance
+        doc = nlp(full_text[:1000000])  # Limit to 1M chars for performance
         entities = {"PERSON": [], "GPE": [], "ORG": []}
         for ent in doc.ents:
             if ent.label_ in entities:
