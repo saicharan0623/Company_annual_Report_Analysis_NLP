@@ -1,16 +1,13 @@
-# requirements.txt
-
+numpy==1.26.4
 streamlit
-PyMuPDF
 pandas
+scikit-learn
+spacy==3.7.2
+https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
+PyMuPDF
 textblob
 wordcloud
 pyLDAvis
-scikit-learn
-spacy==3.7.2
 nltk
 seaborn
 matplotlib
-
-# ADD THIS LINE FOR THE SPACY MODEL
-https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz
