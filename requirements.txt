@@ -1,0 +1,11 @@
+streamlit
+PyMuPDF
+pandas
+textblob
+wordcloud
+pyLDAvis
+scikit-learn
+spacy==3.7.2
+nltk
+seaborn
+matplotlib
