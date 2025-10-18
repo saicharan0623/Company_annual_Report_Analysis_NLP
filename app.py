@@ -25,15 +25,6 @@ st.set_page_config(
 # --- Suppress Warnings ---
 warnings.filterwarnings('ignore')
 
-# --- Ensure spaCy English model is installed ---
-try:
-    import spacy
-    spacy.load("en_core_web_sm")
-except ImportError:
-    st.error("spaCy is not installed. Please check your requirements.")
-except OSError:
-    subprocess.run([sys.executable, "-m", "spacy", "download", "en_core_web_sm"])
-
 # --- Safe NLTK downloads ---
 import nltk
 for resource in ['stopwords', 'punkt']:
